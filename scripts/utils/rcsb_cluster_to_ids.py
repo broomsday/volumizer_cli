@@ -8,6 +8,8 @@ from pathlib import Path
 
 import typer
 
+from cli.rcsb import parse_cluster_file
+
 
 def main(
     cluster_file: Path= typer.Argument(..., help="Sequence ID cluster file downloaded frome RCSB"),
@@ -19,11 +21,7 @@ def main(
     """
 
     with open(cluster_file, mode="r", encoding="utf-8") as file_in:
-        pdbs = {
-            f"{line.split()[0].split('_')[0]}\n"
-            for line in file_in.readlines()
-            if len(line.split()[0].split('_')[0]) == 4
-        }
+        pdbs = parse_cluster_file(file_in.readlines())
 
     with open(output_file, mode="w", encoding="utf-8") as file_out:
         file_out.writelines(pdbs)

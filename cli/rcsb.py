@@ -7,85 +7,38 @@ from urllib import request
 from urllib.error import HTTPError, URLError
 import requests
 from time import sleep
-import re
 import ast
-import progressbar
 
-from volumizer import utils
-from volumizer.paths import RCSB_CLUSTER_FILE, DOWNLOADED_PDB_DIR, RCSB_CCD_FILE, PROTEIN_COMPONENTS_FILE
-from volumizer.constants import (
+from cli import utils
+from cli.paths import DOWNLOADED_PDB_DIR
+from cli.constants import (
     PDB_ID_LENGTH,
-    RCSB_CLUSTER_URL,
     RCSB_BIOUNIT_URL,
     RCSB_BUNDLE_URL,
     RCSB_STRUCTURE_URL,
-    RCSB_CCD_URL,
     RCSB_GENERAL_INFO_URL,
     RCSB_ASSEMBLY_INFO_URL,
     RCSB_CONTACT_RETRIES,
 )
-from volumizer.types import ComponentData
-
-
-class DownloadProgressBar():
-    def __init__(self):
-        self.pbar = None
-
-    def __call__(self, block_num, block_size, total_size):
-        if not self.pbar:
-            self.pbar=progressbar.ProgressBar(maxval=total_size)
-            self.pbar.start()
-
-        downloaded = block_num * block_size
-        if downloaded < total_size:
-            self.pbar.update(downloaded)
-        else:
-            self.pbar.finish()
-
-
-def cluster_file_exists(cluster_file: Path) -> bool:
-    """
-    Check if the RCSB cluster file exists locally.
-    """
-    return cluster_file.is_file()
-
-
-def download_cluster_file() -> None:
-    """
-    Download the RCSB cluster file.
-    """
-    request.urlretrieve(RCSB_CLUSTER_URL, RCSB_CLUSTER_FILE)
-
-
-def get_cluster_file() -> None:
-    """
-    Download the RCSB cluster file if it doesn't exist locally.
-    """
-    RCSB_CLUSTER_FILE.parent.mkdir(exist_ok=True, parents=True)
-    download_attempts = 0
-    while (not cluster_file_exists(RCSB_CLUSTER_FILE)) and (download_attempts < 10):
-        download_cluster_file()
-        download_attempts += 1
-
-    assert cluster_file_exists(RCSB_CLUSTER_FILE)
 
 
 def parse_cluster_file(lines: list[str]) -> set[str]:
     """
     Take the lines from an RCSB cluster file and return a list of all the PDB IDs in the file.
     """
-    return {pdb[:PDB_ID_LENGTH] for pdb in lines}
+    return {
+            f"{line.split()[0].split('_')[0]}\n"
+            for line in lines
+            if len(line.split()[0].split('_')[0]) == PDB_ID_LENGTH
+        }
 
 
 def build_pdb_set(cluster_file: Path) -> set[str]:
     """
     Get a set of all the PDB IDs we want to download and process.
     """
-    assert cluster_file_exists(cluster_file)
     with open(cluster_file, mode="r", encoding="utf-8") as fi:
-        pdbs = parse_cluster_file(fi.readlines())
-
-    return pdbs
+        return parse_cluster_file(fi.readlines())
 
 
 def download_biological_assembly(pdb_id: str, retries: int = RCSB_CONTACT_RETRIES) -> bool:
@@ -118,91 +71,6 @@ def download_biological_assembly(pdb_id: str, retries: int = RCSB_CONTACT_RETRIE
             sleep(1)
 
     return False
-
-
-def component_file_exists() -> bool:
-    """
-    Check if the Chemical Component Dictionary file exists locally.
-    """
-    return RCSB_CCD_FILE.is_file()
-
-
-def download_component_file() -> None:
-    """
-    Download the Chemical Component Dictionary file.
-    """
-    request.urlretrieve(RCSB_CCD_URL, RCSB_CCD_FILE, DownloadProgressBar())
-
-
-def get_component_file() -> None:
-    """
-    Download the Chemical Component Dictionary file.
-    """
-    RCSB_CCD_FILE.parent.mkdir(exist_ok=True, parents=True)
-
-    print("Remove existing RCSB component file")
-    RCSB_CCD_FILE.unlink(missing_ok=True)
-
-    print("Downloading RCSB component file, this may take some time...")
-    download_attempts = 0
-    while (not component_file_exists()) and (download_attempts < 10):
-        print(f"\tDownload attempt: {download_attempts + 1}")
-        download_component_file()
-        download_attempts += 1
-
-    assert component_file_exists()
-
-
-def format_component_id_line(component_id_line: str) -> str:
-    """
-    Pull out just the 3-letter ID from a CCD component ID line.
-    """
-    return component_id_line.strip().split()[-1]
-
-
-def format_component_type_line(component_type_line: str) -> str:
-    """
-    Pull out just the type without quotes from a CCD component type line.
-    """
-    return " ".join(component_type_line.strip().split()[1:]).strip('"')
-
-
-def parse_component_file(lines: list[str]) -> list[ComponentData]:
-    """
-    Read lines from a CCD .cif file and return a list of all component ids and types.
-    """
-    id_search = re.compile("_chem_comp.id*")
-    id_lines = list(filter(id_search.match, lines))
-
-    type_search = re.compile("_chem_comp.type*")
-    type_lines = list(filter(type_search.match, lines))
-
-    component_ids = [format_component_id_line(id_line) for id_line in id_lines]
-    component_types = [format_component_type_line(type_line) for type_line in type_lines]
-
-    return [
-        ComponentData(component_id=component_id, component_type=component_type)
-        for component_id, component_type in zip(component_ids, component_types)
-    ]
-
-
-def get_components() -> list[ComponentData]:
-    """
-    Get all components and their types.
-    """
-    get_component_file()
-    with open(RCSB_CCD_FILE, mode="r", encoding="utf-8") as fi:
-        component_data = parse_component_file(fi.readlines())
-
-    return component_data
-
-
-def load_components() -> list[str]:
-    """
-    Load components form the components text file
-    """
-    with open(PROTEIN_COMPONENTS_FILE, mode="r", encoding="utf-8") as fi:
-        return set([component.rstrip("\n") for component in fi.readlines()])
 
 
 def get_pdb_size_metrics(pdb_id: str, retries: int = RCSB_CONTACT_RETRIES) -> dict[str, int]:
