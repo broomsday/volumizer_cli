@@ -5,24 +5,24 @@ fall within given ranges.
 
 
 from pathlib import Path
-from time import sleep
 import warnings
 
 import typer
 from tqdm import tqdm
 
-from volumizer import analysis, rcsb, utils
+from cli import analysis, rcsb, utils
+from cli.constants import PDB_ID_LENGTH
 
 
 def main(
-    input_list: Path = typer.Argument(..., help=""),
-    output_list: Path = typer.Argument(..., help=""),
-    min_atoms: int = typer.Option(1, help=""),
-    max_atoms: int = typer.Option(None, help=""),
-    min_residues: int = typer.Option(1, help=""),
-    max_residues: int = typer.Option(None, help=""),
-    min_chains: int = typer.Option(1, help=""),
-    max_chains: int = typer.Option(None, help=""),
+    input_list: Path = typer.Argument(..., help="List of PDB IDs to search"),
+    output_list: Path = typer.Argument(..., help="Resulting list of IDs that pass search criteria"),
+    min_atoms: int = typer.Option(1, help="Minimum number of atoms"),
+    max_atoms: int = typer.Option(None, help="Maximum number of atoms"),
+    min_residues: int = typer.Option(1, help="Minimum number of residues"),
+    max_residues: int = typer.Option(None, help="Maximum number of residues"),
+    min_chains: int = typer.Option(1, help="Minimum number of chains"),
+    max_chains: int = typer.Option(None, help="Maximum number of chains"),
 ):
     """
     Subset a PDB list based on some size metrics
@@ -42,7 +42,7 @@ def main(
     # get the list of PDBs we need to check
     with open(input_list, mode="r", encoding="utf-8") as in_file:
         # NOTE: split around '.' to ignore any resolution suffixes
-        pdb_ids = [line.rstrip().split(".")[0] for line in in_file.readlines()]
+        pdb_ids = [line.rstrip().split(".")[0][:PDB_ID_LENGTH] for line in in_file.readlines()]
 
     # check the PDBs
     satisfied_pdb_ids = []
@@ -52,7 +52,6 @@ def main(
         else:
             pdb_size_metrics = rcsb.get_pdb_size_metrics(pdb_id)
             utils.save_pdb_size_metrics(pdb_id, pdb_size_metrics)
-            sleep(0.25)
 
         if pdb_size_metrics is None:
             warnings.warn(f"No PDB size metrics for: {pdb_id}")

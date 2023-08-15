@@ -3,23 +3,13 @@ Functions for using the RCSB.
 """
 
 from pathlib import Path
-from urllib import request
-from urllib.error import HTTPError, URLError
-import requests
-from time import sleep
-import ast
+
+import biotite.structure as bts
+from biotite.structure.io import mmtf
+from biotite.database import rcsb as biotite_rcsb
 
 from cli import utils
-from cli.paths import DOWNLOADED_PDB_DIR
-from cli.constants import (
-    PDB_ID_LENGTH,
-    RCSB_BIOUNIT_URL,
-    RCSB_BUNDLE_URL,
-    RCSB_STRUCTURE_URL,
-    RCSB_GENERAL_INFO_URL,
-    RCSB_ASSEMBLY_INFO_URL,
-    RCSB_CONTACT_RETRIES,
-)
+from cli.constants import PDB_ID_LENGTH
 
 
 def parse_cluster_file(lines: list[str]) -> set[str]:
@@ -41,89 +31,48 @@ def build_pdb_set(cluster_file: Path) -> set[str]:
         return parse_cluster_file(fi.readlines())
 
 
-def download_biological_assembly(pdb_id: str, retries: int = RCSB_CONTACT_RETRIES) -> bool:
-    """
-    Check to see if the biological assembly is available at the RCSB.
-    If so, download it.
-
-    If not, check to see if the PDB-like bundle is available.
-    If not, just down the standard PDB.
-    """
-    biounit_url = RCSB_BIOUNIT_URL + f"{pdb_id[1:3].lower()}/{pdb_id.lower()}.pdb1.gz"
-    bundle_url = RCSB_BUNDLE_URL + f"{pdb_id[1:3].lower()}/{pdb_id.lower()}/{pdb_id.lower()}-pdb-bundle.tar.gz"
-    structure_url = RCSB_STRUCTURE_URL + f"{pdb_id[1:3].lower()}/pdb{pdb_id.lower()}.ent.gz"
-
-    for _ in range(retries):
-        try:
-            request.urlretrieve(biounit_url, DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb1.gz")
-            return True
-        except HTTPError:
-            try:
-                request.urlretrieve(bundle_url, DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb1.tar.gz")
-                return True
-            except HTTPError:
-                try:
-                    request.urlretrieve(structure_url, DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb1.gz")
-                    return True
-                except HTTPError:
-                    return False
-        except URLError:
-            sleep(1)
-
-    return False
-
-
-def get_pdb_size_metrics(pdb_id: str, retries: int = RCSB_CONTACT_RETRIES) -> dict[str, int]:
-    """
-    Given a PDB ID from the RCSB, get PDB size metrics.
-    """
-    for _ in range(retries):
-        general_info = ast.literal_eval(requests.get(RCSB_GENERAL_INFO_URL + pdb_id).text)
-        assembly_info = ast.literal_eval(requests.get(RCSB_ASSEMBLY_INFO_URL + pdb_id + "/1").text)
-
-        if ("status" in assembly_info) and (assembly_info["status"] == 500):
-            continue
-        else:
-            break
-
-    if (("status" in assembly_info) and (assembly_info["status"] == 500)) or (
-        ("status" in general_info) and (general_info["status"] == 500)
-    ):
-        raise requests.ConnectionError("Couldn't connect to server")
-
-    # if we couldn't get either set of info, just return 0s
-    if (("status" in assembly_info) and (assembly_info["status"] == 404)) and (
-        ("status" in general_info) and (general_info["status"] == 404)
-    ):
-        return {
-            "atoms": 0,
-            "residues": 0,
-            "chains": 0,
-        }
-    # if we got the general info but not the assembly info (e.g. an NMR structure) use the general info
-    elif ("status" in assembly_info) and (assembly_info["status"] == 404):
-        return {
-            "atoms": int(general_info["rcsb_entry_info"].get("deposited_atom_count", 0)),
-            "residues": int(general_info["rcsb_entry_info"].get("deposited_modeled_polymer_monomer_count", 0)),
-            "chains": int(general_info["rcsb_entry_info"].get("deposited_polymer_entity_instance_count", 0)),
-        }
-
-    # otherwise use the assembly info
-    return {
-        "atoms": int(assembly_info["rcsb_assembly_info"].get("atom_count", 0)),
-        "residues": int(assembly_info["rcsb_assembly_info"].get("modeled_polymer_monomer_count", 0)),
-        "chains": int(assembly_info["rcsb_assembly_info"].get("polymer_entity_instance_count", 0)),
-        # "chains": int(assembly_info["pdbx_struct_assembly"]["oligomeric_count"]),
-    }
-
-
-def download_pdb_file(pdb_id: str) -> Path:
+def download_pdb_file(pdb_id: str) -> bool:
     """
     Download the biological assembly from the RCSB.
     Unzip and save the PDB.
     """
-    if not utils.is_pdb_downloaded(pdb_id):
-        if download_biological_assembly(pdb_id):
-            utils.decompress_pdb(pdb_id)
+    download_path = utils.get_downloaded_pdb_path(pdb_id)
+    if not download_path.is_file():
+        try:
+            mmtf_file = mmtf.MMTFFile.read(biotite_rcsb.fetch(pdb_id, "mmtf"))
+            mmtf_file.write(download_path)
+        except (ConnectionError):
+            return False
 
-    return utils.get_downloaded_pdb_path(pdb_id)
+    return True
+
+
+def get_biological_assembly(pdb_id: str) -> bts.AtomArray:
+    """
+    Load the biological assembly of a PDB.
+    """
+    download_path = utils.get_downloaded_pdb_path(pdb_id)
+    mmtf_file = mmtf.MMTFFile.read(download_path)
+
+    try:
+        biological_assembly = mmtf.get_assembly(mmtf_file, assembly_id="1", model=1)
+    except (ValueError, NotImplementedError, IndexError):
+        biological_assembly = mmtf.get_structure(mmtf_file, model=1)
+
+    return biological_assembly
+
+
+def get_pdb_size_metrics(pdb_id: str) -> dict[str, int] | None:
+    """
+    Given a PDB ID from the RCSB, get PDB size metrics.
+    """
+    if not download_pdb_file(pdb_id):
+        return None
+
+    biological_assembly = get_biological_assembly(pdb_id)
+
+    return {
+        "atoms":len(biological_assembly),
+        "residues": bts.get_residue_count(biological_assembly),
+        "chains": bts.get_chain_count(biological_assembly),
+    }

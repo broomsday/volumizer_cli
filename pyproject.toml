@@ -10,6 +10,8 @@ packages = [{include = "cli"}]
 python = "^3.10"
 typer = "^0.9.0"
 volumizer = "^0.1.3"
+tqdm = "^4.66.1"
+biotite = "^0.37.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
