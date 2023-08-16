@@ -20,7 +20,7 @@ def main(
     min_atoms: int = typer.Option(1, help="Minimum number of atoms"),
     max_atoms: int = typer.Option(None, help="Maximum number of atoms"),
     min_residues: int = typer.Option(1, help="Minimum number of residues"),
-    max_residues: int = typer.Option(None, help="Maximum number of residues"),
+    max_residues: int = typer.Option(10000, help="Maximum number of residues"),
     min_chains: int = typer.Option(1, help="Minimum number of chains"),
     max_chains: int = typer.Option(None, help="Maximum number of chains"),
 ):
