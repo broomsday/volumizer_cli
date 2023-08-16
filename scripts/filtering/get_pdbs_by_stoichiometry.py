@@ -9,8 +9,11 @@ import warnings
 
 import typer
 from tqdm import tqdm
+from biotite.structure.io import load_structure, save_structure
 
-from volumizer import utils, pdb, paths, analysis
+from volumizer.pdb import clean_structure
+from cli import utils, pdb, rcsb, analysis
+from cli.constants import MAX_RESOLUTION
 
 
 def main(
@@ -45,14 +48,26 @@ def main(
         # NOTE: split around '.' to ignore any resolution suffixes
         pdb_ids = [line.rstrip().split(".")[0] for line in in_file.readlines()]
 
+    # check the PDBS
     satisfied_pdb_ids = []
     for pdb_id in tqdm(pdb_ids):
         if utils.have_stoichiometry_on_file(pdb_id):
             stoichiometry = utils.load_stoichiometry(pdb_id)
         else:
-            prepared_pdb = paths.PREPARED_PDB_DIR / f"{pdb_id}.pdb"
-            prepared_structure = pdb.load_structure(prepared_pdb)
-            stoichiometry = pdb.get_stoichiometry(prepared_structure)
+            if not utils.is_pdb_downloaded(pdb_id):
+                if not rcsb.download_pdb_file(pdb_id):
+                    continue
+
+            if not utils.is_pdb_prepared(pdb_id):
+                resolution = rcsb.get_resolution(utils.get_downloaded_pdb_path(pdb_id))
+                if resolution is not None and resolution > MAX_RESOLUTION:
+                    continue
+
+                structure = rcsb.get_biological_assembly(pdb_id)
+                prepared_structure = clean_structure(structure)
+                save_structure(utils.get_prepared_pdb_path(pdb_id), prepared_structure)
+            
+            stoichiometry = pdb.get_stoichiometry(load_structure(utils.get_prepared_pdb_path(pdb_id)))
             utils.save_stoichiometry(pdb_id, stoichiometry)
 
         if stoichiometry is None:

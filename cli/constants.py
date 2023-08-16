@@ -3,15 +3,7 @@ Constants used to avoid magic numbers.
 """
 
 PDB_ID_LENGTH = 4
-
-RCSB_CLUSTER_URL = "https://cdn.rcsb.org/resources/sequence/clusters/bc-90.out"
-RCSB_CCD_URL = "https://ftp.wwpdb.org/pub/pdb/data/monomers/components.cif"
-RCSB_BIOUNIT_URL = "https://ftp.wwpdb.org/pub/pdb/data/biounit/PDB/divided/"
-RCSB_BUNDLE_URL = "https://files.rcsb.org/pub/pdb/compatible/pdb_bundle/"
-RCSB_STRUCTURE_URL = "https://ftp.wwpdb.org/pub/pdb/data/structures/divided/pdb/"
-RCSB_GENERAL_INFO_URL = "https://data.rcsb.org/rest/v1/core/entry/"
-RCSB_ASSEMBLY_INFO_URL = "https://data.rcsb.org/rest/v1/core/assembly/"
-RCSB_CONTACT_RETRIES = 10
+MAX_RESOLUTION = 5.0
 
 RESIDUE_LETTER_CONVERSION = {
     "ALA": "A",

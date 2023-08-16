@@ -6,8 +6,6 @@ Functions to interpret CLI commands.
 from pathlib import Path
 from typing import Optional
 
-import gzip
-import tarfile
 import pandas as pd
 import json
 
@@ -25,7 +23,7 @@ def get_prepared_pdb_path(pdb_id: str) -> Path:
     """
     Return the path to the cleaned PDB file for this PDB ID.
     """
-    return paths.PREPARED_PDB_DIR / f"{pdb_id}.pdb"
+    return paths.PREPARED_PDB_DIR / f"{pdb_id}.mmtf"
 
 
 def get_annotated_pdb_path(pdb_id: str) -> Path:
@@ -58,32 +56,6 @@ def is_pdb_annotated(pdb_id: str) -> bool:
     Has the PDB been fully processed.
     """
     return get_annotated_pdb_path(pdb_id).is_file()
-
-
-def decompress_pdb(pdb_id: str) -> None:
-    """
-    Decompress the gzipped PDB file in the DOWNLOADED_PDB_DIR.
-    Save as a text file.
-    Delete the original compressed object.
-    """
-    tar_gz_path = paths.DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb1.tar.gz"
-    gz_path = paths.DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb1.gz"
-    unzipped_path = paths.DOWNLOADED_PDB_DIR / f"{pdb_id}.pdb"
-
-    if gz_path.is_file():
-        with gzip.open(gz_path, mode="rb") as fi:
-            pdb_data = fi.read()
-        with open(unzipped_path, mode="wb") as fo:
-            fo.write(pdb_data)
-        gz_path.unlink()
-    elif tar_gz_path.is_file():
-        with tarfile.open(tar_gz_path, mode="r") as fi:
-            name = [name for name in fi.getnames() if "bundle" in name][0]
-            member = fi.getmember(name)
-            pdb_data = fi.extractfile(member).readlines()
-        with open(unzipped_path, mode="wb") as fo:
-            fo.writelines(pdb_data)
-        tar_gz_path.unlink()
 
 
 def setup_dirs():

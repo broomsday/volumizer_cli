@@ -9,9 +9,11 @@ import warnings
 
 import typer
 from tqdm import tqdm
+from biotite.structure.io import load_structure, save_structure, mmtf
 
-from cli import analysis, rcsb, utils
-from cli.constants import PDB_ID_LENGTH
+from volumizer.pdb import clean_structure
+from cli import analysis, pdb, rcsb, utils
+from cli.constants import PDB_ID_LENGTH, MAX_RESOLUTION
 
 
 def main(
@@ -20,7 +22,7 @@ def main(
     min_atoms: int = typer.Option(1, help="Minimum number of atoms"),
     max_atoms: int = typer.Option(None, help="Maximum number of atoms"),
     min_residues: int = typer.Option(1, help="Minimum number of residues"),
-    max_residues: int = typer.Option(10000, help="Maximum number of residues"),
+    max_residues: int = typer.Option(None, help="Maximum number of residues"),
     min_chains: int = typer.Option(1, help="Minimum number of chains"),
     max_chains: int = typer.Option(None, help="Maximum number of chains"),
 ):
@@ -38,6 +40,14 @@ def main(
         "min_chains": min_chains,
         "max_chains": max_chains,
     }
+    preparation_metrics = {
+        "min_atoms": min_atoms,
+        "max_atoms": max_atoms * 2 if max_atoms is not None else None,
+        "min_residues": min_residues,
+        "max_residues": max_residues * 2 if max_residues is not None else None,
+        "min_chains": min_chains,
+        "max_chains": max_chains * 2 if max_chains is not None else None,
+    }
 
     # get the list of PDBs we need to check
     with open(input_list, mode="r", encoding="utf-8") as in_file:
@@ -50,7 +60,27 @@ def main(
         if utils.have_pdb_size_metrics_on_file(pdb_id):
             pdb_size_metrics = utils.load_pdb_size_metrics(pdb_id)
         else:
-            pdb_size_metrics = rcsb.get_pdb_size_metrics(pdb_id)
+            if not utils.is_pdb_downloaded(pdb_id):
+                if not rcsb.download_pdb_file(pdb_id):
+                    continue
+
+            if not utils.is_pdb_prepared(pdb_id):
+                resolution = rcsb.get_resolution(utils.get_downloaded_pdb_path(pdb_id))
+                if resolution is not None and resolution > MAX_RESOLUTION:
+                    continue
+
+                # early exit and don't clean if the PDB file is too big
+                biological_assembly = rcsb.get_biological_assembly(pdb_id)
+                pdb_size_metrics = pdb.get_pdb_size_metrics(biological_assembly)
+                if not analysis.pdb_satisfies_metrics(pdb_size_metrics, preparation_metrics):
+                    continue
+
+                # size is worth cleaning
+                structure = rcsb.get_biological_assembly(pdb_id)
+                prepared_structure = clean_structure(structure)
+                save_structure(utils.get_prepared_pdb_path(pdb_id), prepared_structure)
+            
+            pdb_size_metrics = pdb.get_pdb_size_metrics(load_structure(utils.get_prepared_pdb_path(pdb_id)))
             utils.save_pdb_size_metrics(pdb_id, pdb_size_metrics)
 
         if pdb_size_metrics is None:

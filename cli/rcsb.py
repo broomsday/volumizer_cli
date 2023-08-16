@@ -62,17 +62,13 @@ def get_biological_assembly(pdb_id: str) -> bts.AtomArray:
     return biological_assembly
 
 
-def get_pdb_size_metrics(pdb_id: str) -> dict[str, int] | None:
+def get_resolution(mmtf_path: Path) -> float | None:
     """
-    Given a PDB ID from the RCSB, get PDB size metrics.
+    Determine the resolution of the structure.
     """
-    if not download_pdb_file(pdb_id):
+    mmtf_file = mmtf.MMTFFile.read(mmtf_path)
+    try:
+        return mmtf_file["resolution"]
+    except (KeyError, ValueError):
         return None
-
-    biological_assembly = get_biological_assembly(pdb_id)
-
-    return {
-        "atoms":len(biological_assembly),
-        "residues": bts.get_residue_count(biological_assembly),
-        "chains": bts.get_chain_count(biological_assembly),
-    }
+    
