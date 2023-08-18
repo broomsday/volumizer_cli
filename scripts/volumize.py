@@ -20,7 +20,7 @@ def volumize_pdb_id(pdb_id: str) -> None:
     """
     Download the given PDB ID and then volumize it.
     """
-    if not cli_utils.have_annotation(pdb_id):
+    if not cli_utils.have_annotation(cli_utils.get_annotated_pdb_path(pdb_id).stem):
         print(f"Working on: {pdb_id}")
 
         if not rcsb.download_pdb_file(pdb_id):
@@ -29,7 +29,7 @@ def volumize_pdb_id(pdb_id: str) -> None:
 
         downloaded_pdb_path = cli_utils.get_downloaded_pdb_path(pdb_id)        
         annotated_pdb_path = cli_utils.get_annotated_pdb_path(pdb_id)
-        annotated_df_path = annotated_pdb_path.with_suffix(".json")
+        annotated_df_path = cli_utils.get_annotated_df_path(pdb_id)
 
         volumizer.volumize_pdb_and_save(downloaded_pdb_path, annotated_pdb_path, annotated_df_path)
 
@@ -38,7 +38,8 @@ def volumize_pdb_id(pdb_id: str) -> None:
         print(f"Quick annotation output:")
         print(pd.read_json(annotated_df_path))
     else:
-        print(pd.read_json(cli_utils.get_annotated_pdb_path(pdb_id).with_suffix(".json")))        
+        print(pdb_id)
+        print(pd.read_json(cli_utils.get_annotated_df_path(pdb_id).with_suffix(".json")))        
 
 
 def volumize_pdb_file(pdb_file: Path) -> None:
@@ -58,6 +59,7 @@ def volumize_pdb_file(pdb_file: Path) -> None:
         print(f"Quick annotation output:")
         print(pd.read_json(annotated_df_path))
     else:
+        print(pdb_file)
         print(pd.read_json(ANNOTATED_DF_DIR / pdb_file.stem).with_suffix(".json"))
 
 

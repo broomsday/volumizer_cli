@@ -14,7 +14,7 @@ from cli import paths
 
 def get_downloaded_pdb_path(pdb_id: str) -> Path:
     """
-    Return the path to the cleaned PDB file for this PDB ID.
+    Return the path to the downloaded PDB file for this PDB ID.
     """
     return paths.DOWNLOADED_PDB_DIR / f"{pdb_id}.mmtf"
 
@@ -28,9 +28,16 @@ def get_prepared_pdb_path(pdb_id: str) -> Path:
 
 def get_annotated_pdb_path(pdb_id: str) -> Path:
     """
-    Return the path to the cleaned PDB file for this PDB ID.
+    Return the path to the annotated PDB file for this PDB ID.
     """
     return paths.ANNOTATED_PDB_DIR / f"{pdb_id}.pdb"
+
+
+def get_annotated_df_path(pdb_id: str) -> Path:
+    """
+    Return the path to the annotated dataframe for this PDB ID.
+    """
+    return paths.ANNOTATED_DF_DIR / f"{pdb_id}.json"
 
 
 def is_pdb_downloaded(pdb_id: str) -> bool:
@@ -76,13 +83,13 @@ def save_annotation_dataframe(annotation_df: pd.DataFrame, save_file: Path):
     annotation_df.to_json(save_file)
 
 
-def have_annotation(file_stem: str, resolution: float = 3.0) -> bool:
+def have_annotation(file_stem: str) -> bool:
     """
     If we have already completed the annotation of this file, return True.
     False otherwise.
     """
-    pdb_path = paths.ANNOTATED_PDB_DIR / f"{file_stem}.{resolution}.pdb"
-    df_path = paths.ANNOTATED_DF_DIR / f"{file_stem}.{resolution}.json"
+    pdb_path = paths.ANNOTATED_PDB_DIR / f"{file_stem}.pdb"
+    df_path = paths.ANNOTATED_DF_DIR / f"{file_stem}.json"
     if pdb_path.is_file() and df_path.is_file():
         return True
 

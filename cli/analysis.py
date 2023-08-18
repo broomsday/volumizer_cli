@@ -12,14 +12,14 @@ from tqdm import tqdm
 from cli.paths import ANNOTATED_DF_DIR
 
 
-def get_annotations_by_id(pdb_ids: list[str], resolution: float = 3.0) -> tuple[list[Path], int]:
+def get_annotations_by_id(pdb_ids: list[str]) -> tuple[list[Path], int]:
     """
     Given a list of PDB IDs, return the corresponding list of annotated
     dataframe file pathes.
     """
     annotation_paths = [
-        (ANNOTATED_DF_DIR / f"{pdb_id}.{resolution}.json")
-        if (ANNOTATED_DF_DIR / f"{pdb_id}.{resolution}.json").is_file()
+        (ANNOTATED_DF_DIR / f"{pdb_id}.json")
+        if (ANNOTATED_DF_DIR / f"{pdb_id}.json").is_file()
         else None
         for pdb_id in tqdm(pdb_ids, desc="Getting dataframe locations")
     ]

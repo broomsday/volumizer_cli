@@ -12,8 +12,8 @@ import warnings
 
 import typer
 
-from volumizer import analysis
-from volumizer.cli import guess_analysis_input_type
+from cli import analysis
+from cli.utils import guess_analysis_input_type
 
 
 def main(
