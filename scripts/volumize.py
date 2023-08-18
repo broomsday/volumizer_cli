@@ -9,40 +9,36 @@ import multiprocessing
 import pandas as pd
 
 from volumizer import volumizer
-from volumizer import pdb as volumizer_pdb
 from volumizer import utils as volumizer_utils
 from volumizer.constants import VOXEL_SIZE
 from cli import utils as cli_utils
-from cli.paths import PREPARED_PDB_DIR, ANNOTATED_DF_DIR, ANNOTATED_PDB_DIR
+from cli import rcsb
+from cli.paths import ANNOTATED_DF_DIR, ANNOTATED_PDB_DIR
 
 
 def volumize_pdb_id(pdb_id: str) -> None:
     """
     Download the given PDB ID and then volumize it.
     """
-    if not utils.have_annotation(pdb_id):
-        pdb_file = rcsb.download_pdb_file(pdb_id)
-        if pdb_file is None:
-            return None
-
+    if not cli_utils.have_annotation(pdb_id):
         print(f"Working on: {pdb_id}")
 
-        pdb_structure = pdb.load_structure(pdb_file)
-        prepared_structure, preparation_remarks = volumizer.prepare_pdb_structure(pdb_structure)
-        prepared_pdb = pdb.structure_to_lines(prepared_structure)
-        prepared_lines = pdb.merge_pdb_lines([preparation_remarks, prepared_pdb])
-        pdb.save_pdb_lines(prepared_lines, (PREPARED_PDB_DIR / pdb_file.stem).with_suffix('.pdb'))
+        if not rcsb.download_pdb_file(pdb_id):
+            print(f"Skipping {pdb_id}, cannot download")
+            return None
 
-        annotation, annotated_lines = volumizer.annotate_pdb_structure(prepared_structure)
-        final_pdb_lines = pdb.merge_pdb_lines([prepared_lines, ["END"], annotated_lines])
-        annotation_df = utils.make_annotation_dataframe(annotation)
+        downloaded_pdb_path = cli_utils.get_downloaded_pdb_path(pdb_id)        
+        annotated_pdb_path = cli_utils.get_annotated_pdb_path(pdb_id)
+        annotated_df_path = annotated_pdb_path.with_suffix(".json")
 
-        utils.save_annotation_dataframe(annotation_df, (ANNOTATED_DF_DIR / pdb_file.stem).with_suffix('.json'))
-        print(f"Annotation saved to dataframe as: {(ANNOTATED_DF_DIR / pdb_file.stem).with_suffix('.json')}")
-        pdb.save_pdb_lines(final_pdb_lines, (ANNOTATED_PDB_DIR / pdb_file.stem).with_suffix('.pdb'))
-        print(f"Annotation saved to PDB as: {(ANNOTATED_PDB_DIR / pdb_file.stem).with_suffix('.pdb')}")
+        volumizer.volumize_pdb_and_save(downloaded_pdb_path, annotated_pdb_path, annotated_df_path)
+
+        print(f"Annotation dataframe saved as: {annotated_df_path}")
+        print(f"Annotated PDB saved as: {annotated_pdb_path}")
         print(f"Quick annotation output:")
-        print(annotation_df)
+        print(pd.read_json(annotated_df_path))
+    else:
+        print(pd.read_json(cli_utils.get_annotated_pdb_path(pdb_id).with_suffix(".json")))        
 
 
 def volumize_pdb_file(pdb_file: Path) -> None:
@@ -54,11 +50,15 @@ def volumize_pdb_file(pdb_file: Path) -> None:
 
         annotated_pdb_path = (ANNOTATED_PDB_DIR / pdb_file.stem).with_suffix(".pdb")
         annotated_df_path = (ANNOTATED_DF_DIR / pdb_file.stem).with_suffix(".json")
+
         volumizer.volumize_pdb_and_save(pdb_file, annotated_pdb_path, annotated_df_path)
+
         print(f"Annotation dataframe saved as: {annotated_df_path}")
         print(f"Annotated PDB saved as: {annotated_pdb_path}")
         print(f"Quick annotation output:")
         print(pd.read_json(annotated_df_path))
+    else:
+        print(pd.read_json(ANNOTATED_DF_DIR / pdb_file.stem).with_suffix(".json"))
 
 
 def main(
